@@ -50,6 +50,8 @@ void yyerror(const char *msg); // standard error-handling routine
     Type *type;
     TypeQualifier *tq;
     Operator *o;
+    List<VarDecl*> *d;
+    VarDecl *var;
 }
 
 
@@ -99,6 +101,9 @@ void yyerror(const char *msg); // standard error-handling routine
 %type <o>         Operator
 %type <type>      Type
 %type <tq>        TypeQualifier
+%type <d>         VarDeclList
+%type <var>       VarDecl
+
 
 
 
@@ -170,6 +175,32 @@ Decl      :    Type T_Identifier T_Semicolon {
                                                  Expr *expr = $4;
                                                  $$ = new VarDecl(id,t,expr);
                                               }
+          |    TypeQualifier Type T_Identifier T_Equal Expr T_Semicolon  {
+                                                 Identifier *id = new Identifier(@3,$3);
+                                                 Type *t = $2;
+                                                 TypeQualifier *tq = $1;
+                                                 Expr *expr = $5;
+                                                 $$ = new VarDecl(id,t,tq,expr);
+                                              }
+          |    Type T_Identifier T_LeftParen  VarDeclList T_RightParen T_LeftBrace T_RightBrace                                                
+                                              {
+                                                Identifier *id = new Identifier(@2,$2);
+                                                Type *t = $1;
+                                                $$ = new FnDecl(id,t, NULL);
+                                              }
+          ;
+
+VarDeclList :   VarDeclList VarDecl     { ($$=$1)->Append($2); }
+            |   VarDecl                  { ($$ = new List<VarDecl*>)->Append($1); }
+            ;
+
+VarDecl   :    Type T_Identifier {
+                                     Identifier *id = new Identifier(@2, $2);
+                                     Type *t = $1;
+                                     $$ = new VarDecl(id, t);
+                                     //great now I get to just move all the types returning
+                                     //vardecl from decl to here
+                                 }
           ;
 
 Type      :    T_Int { $$ = new Type("int");}
