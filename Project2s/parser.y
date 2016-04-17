@@ -157,12 +157,26 @@ DeclList  :    DeclList Decl        { ($$=$1)->Append($2); }
           |    Decl                 { ($$ = new List<Decl*>)->Append($1); }
           ;
 
-Decl      :    Type T_Identifier T_Semicolon {
-                                                 // replace it with your implementation.
-                                                 Identifier *id = new Identifier(@2, $2);
-                                                 Type *t = $1;
-                                                 $$ = new VarDecl(id, t);
-                                             }
+Decl      :    Type T_Identifier T_LeftParen  VarDeclList T_RightParen T_LeftBrace T_RightBrace                                                
+                                              {
+                                                Identifier *id = new Identifier(@2,$2);
+                                                Type *t = $1;
+                                                $$ = new FnDecl(id,t, NULL);
+                                              }
+          |    VarDecl                  { ($$=$1); }
+          ;
+
+VarDeclList :   VarDeclList VarDecl     { ($$=$1)->Append($2); }
+            |   VarDecl                  { ($$ = new List<VarDecl*>)->Append($1); }
+            ;
+
+VarDecl   :    Type T_Identifier {
+                                     Identifier *id = new Identifier(@2, $2);
+                                     Type *t = $1;
+                                     $$ = new VarDecl(id, t);
+                                     //great now I get to just move all the types returning
+                                     //vardecl from decl to here
+                                 }
           |    TypeQualifier Type T_Identifier T_Semicolon { 
                                                     Identifier *id = new Identifier(@3, $3);
                                                     Type *t = $2;
@@ -182,25 +196,7 @@ Decl      :    Type T_Identifier T_Semicolon {
                                                  Expr *expr = $5;
                                                  $$ = new VarDecl(id,t,tq,expr);
                                               }
-          |    Type T_Identifier T_LeftParen  VarDeclList T_RightParen T_LeftBrace T_RightBrace                                                
-                                              {
-                                                Identifier *id = new Identifier(@2,$2);
-                                                Type *t = $1;
-                                                $$ = new FnDecl(id,t, NULL);
-                                              }
-          ;
 
-VarDeclList :   VarDeclList VarDecl     { ($$=$1)->Append($2); }
-            |   VarDecl                  { ($$ = new List<VarDecl*>)->Append($1); }
-            ;
-
-VarDecl   :    Type T_Identifier {
-                                     Identifier *id = new Identifier(@2, $2);
-                                     Type *t = $1;
-                                     $$ = new VarDecl(id, t);
-                                     //great now I get to just move all the types returning
-                                     //vardecl from decl to here
-                                 }
           ;
 
 Type      :    T_Int { $$ = new Type("int");}
