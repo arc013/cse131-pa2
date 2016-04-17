@@ -47,9 +47,9 @@ void yyerror(const char *msg); // standard error-handling routine
     List<Decl*> *declList;
     Expr *expr;
     List<Expr*> *exprList;
-    Operator *operator;
     Type *type;
     TypeQualifier *tq;
+    Operator *o;
 }
 
 
@@ -96,7 +96,7 @@ void yyerror(const char *msg); // standard error-handling routine
 %type <stmt>      Stmt*/
 %type <exprList>  ExprList
 %type <expr>      Expr
-%type <operator>  Operator
+%type <o>         Operator
 %type <type>      Type
 %type <tq>        TypeQualifier
 
@@ -122,7 +122,6 @@ void yyerror(const char *msg); // standard error-handling routine
                                                 }
 
           ;*/
-
 
 %%
 /* Rules
@@ -160,6 +159,7 @@ Decl      :    Type T_Identifier T_Semicolon {
                                                     $$ = new VarDecl(id,t,tq); 
                                               }
           ;
+
 Type      :    T_Int { $$ = new Type("int");}
           |    T_Float { $$ = new Type("float");}
           |    T_Bool  { $$ = new Type("bool");}
@@ -204,7 +204,10 @@ Operator  :   T_Plus         {
           |   T_Slash        {
                                 $$ = new Operator(@1,"/");
                              }
-          ;   
+          ;  
+
+
+
 
 %%
 
