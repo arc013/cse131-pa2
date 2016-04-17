@@ -211,7 +211,22 @@ Operator  :   T_Plus         {
           |   T_Slash        {
                                 $$ = new Operator(@1,"/");
                              }
-          ;  
+
+	  |   T_LessEqual    {
+                                $$ = new Operator(@1,"<=");
+                             }
+	  |   T_GreaterEqual {
+                                $$ = new Operator(@1,">=");
+                             }
+
+	  |   T_EQ           {
+                                $$ = new Operator(@1,"==");
+                             }
+
+	  |   T_NE           {
+                                $$ = new Operator(@1,"!=");
+                             }
+          ;   
 
 
 
