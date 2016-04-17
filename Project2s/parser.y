@@ -122,6 +122,12 @@ void yyerror(const char *msg); // standard error-handling routine
                                                 }
 
           ;*/
+ /*:  Expr Operator Expr T_Semicolon { Expr *left = $1;
+                                              Expr *Right = $3;
+                                              Operator *op = $2;
+                                              $$ = new CompoundExpr(left,op,Right);
+                                            }*/
+
 
 %%
 /* Rules
@@ -158,6 +164,12 @@ Decl      :    Type T_Identifier T_Semicolon {
                                                     TypeQualifier *tq = $1;
                                                     $$ = new VarDecl(id,t,tq); 
                                               }
+          |    Type T_Identifier T_Equal Expr T_Semicolon  {
+                                                 Identifier *id = new Identifier(@2,$2);
+                                                 Type *t = $1;
+                                                 Expr *expr = $4;
+                                                 $$ = new VarDecl(id,t,expr);
+                                              }
           ;
 
 Type      :    T_Int { $$ = new Type("int");}
@@ -177,19 +189,14 @@ ExprList  :   ExprList Expr         { ($$=$1)->Append($2); }
           |   Expr                  { ($$ = new List<Expr*>)->Append($1); }
           ;
 
-Expr      :  Expr Operator Expr  { Expr *left = new Expr(@1,$1);
-                                   Expr *Right = new Expr(@3,$3);
-                                   Operator *op = $2;
-                                   $$ = new CompoundExpr(Left,op,Right);
-                                 }
-          |  T_IntConstant   { int val = new integerConstant($1);
-                              $$ = new IntConstant(@1,val);
+Expr      :  T_IntConstant   { 
+                               $$ = new IntConstant(@1,$1);
                              }
-          |  T_FloatConstant { double val = new floatConstant($1);
-                               $$ = new FloatConstant(@1, val);
+          |  T_FloatConstant { 
+                               $$ = new FloatConstant(@1,$1);
                              }
-          |  T_BoolConstant  { bool val = new boolConstant($1);
-                               $$ = new BoolConstant(@1, val);
+          |  T_BoolConstant  { 
+                               $$ = new BoolConstant(@1, $1);
                              }
           ;
 Operator  :   T_Plus         {  
