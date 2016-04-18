@@ -43,10 +43,11 @@ void yyerror(const char *msg); // standard error-handling routine
     bool boolConstant;
     float floatConstant;
     char identifier[MaxIdentLen+1]; // +1 for terminating null
+    FnDecl *fnDecl;
     Decl *decl;
     List<Decl*> *declList;
     Expr *expr;
-    List<Expr*> *exprList;
+    //List<Expr*> *exprList;
     Type *type;
     TypeQualifier *tq;
     Operator *o;
@@ -96,9 +97,10 @@ void yyerror(const char *msg); // standard error-handling routine
  */
 %type <declList>  DeclList
 %type <decl>      Decl
+%type <fnDecl>    FunctionPrototype FunctionHeader /*FunctionCall*/
 /*%type <stmtList>  StmtList
 %type <stmt>      Stmt*/
-%type <exprList>  ExprList
+/* %type <exprList>  ExprList*/
 %type <expr>      Expr
 %type <o>         Operator
 %type <type>      Type
@@ -111,31 +113,6 @@ void yyerror(const char *msg); // standard error-handling routine
 
 
 
-/*StmtBlock :    DeclList StmtList    {  @1
-                                         StmtBlock *stmtblk = new StmtBlock($1,$2);
-                                         if (ReportError::NumErrors() == 0)
-                                            stmtblk->Print(0);
-				      }
-          ;*/
-/* |    T_Float T_Identifier T_Semicolon {
-                                                   Identifier *id = new Identifier(@2,$2);
-                                                   $$ = new VarDecl(id, Type::floatType);
-                                                }
-          |    T_Bool T_Identifier T_Semicolon {
-                                                 Identifier *id = new Identifier(@2,$2);
-                                                 $$ = new VarDecl(id, Type::boolType);
-                                               }
-          |    T_Void T_Identifier T_Semicolon  {
-                                                   Identifier *id = new Identifier(@2,$2);
-                                                   $$ = new VarDecl(id, Type::voidType);
-                                                }
-
-          ;*/
- /*:  Expr Operator Expr T_Semicolon { Expr *left = $1;
-                                              Expr *Right = $3;
-                                              Operator *op = $2;
-                                              $$ = new CompoundExpr(left,op,Right);
-                                            }*/
 
 
 %%
@@ -161,54 +138,90 @@ DeclList  :    DeclList Decl        { ($$=$1)->Append($2); }
           |    Decl                 { ($$ = new List<Decl*>)->Append($1); }
           ;
 
-Decl      :    T_Void T_Identifier T_LeftParen VarDeclList T_RightParen T_LeftBrace Stmt T_RightBrace                                                
-                                              {
-                                                Identifier *id = new Identifier(@2,$2);
-                                                Type *t = new Type("void");
-                                                List<VarDecl*> *vd = $4;
-                                                $$ = new FnDecl(id,t,vd);
-                                              }
-          |    Type T_Identifier T_LeftParen VarDeclList T_RightParen T_LeftBrace Stmt T_RightBrace                            {
+Decl      :  FunctionPrototype      { ($$=$1); }
+          |  FunctionPrototype T_Semicolon { $$=$1; }
+                                    /*Type T_Identifier T_LeftParen T_RightParen T_LeftBrace Stmt T_RightBrace                            {
                                           Identifier *id = new Identifier(@2,$2);
                                           Type *t = $1;
-                                          List<VarDecl*> *vd = $4;
-                                          $$ = new FnDecl(id,t,vd);
-                                        }
-          |    VarDecl                  { ($$=$1); }
-          ;
+                                          //Stmt *body = $7;
+                                          //SetFunctionBody(body);
+                                          $$ = new FnDecl(id,t,new List<VarDecl*>);
+                                          $$::SetFunctionBody(
+                                        }*/
+           | VarDecl      { $$=$1; }
+           | VarDecl T_Semicolon { $$=$1; }
+           ;
 
-VarDeclList :   VarDeclList VarDecl     { ($$=$1)->Append($2); }
+FunctionPrototype : FunctionHeader  { $$=$1; }
+                  | FunctionHeader T_LeftBrace T_RightBrace {
+                                                              $$ = $1;
+                                                              $$->SetFunctionBody(new StmtBlock(new List<VarDecl*>,new List<Stmt*>));
+                                                            }
+                  | FunctionHeader T_LeftBrace Stmt T_RightBrace { 
+                                                                   $$=$1;
+                                                                   $$->SetFunctionBody($3);
+                                                                 }
+                  ;
+                  
+                  
+                  
+                  
+FunctionHeader :  Type T_Identifier T_LeftParen T_RightParen {
+                                          Identifier *id = new Identifier(@2,$2);
+                                          Type *t = $1;
+                                          $$ = new FnDecl(id,t,new List<VarDecl*>);
+                                        }
+               |  TypeQualifier Type T_Identifier T_LeftParen T_RightParen {
+                                          Identifier *id = new Identifier(@3,$3);
+                                          Type *t = $2;
+                                          TypeQualifier *tq = $1;
+                                          $$ = new FnDecl(id,t,tq,new List<VarDecl*>);
+                                        }
+
+               |  Type T_Identifier T_LeftParen VarDeclList T_RightParen {
+                                          Identifier *id = new Identifier(@2,$2);
+                                          Type *t = $1;
+                                          List<VarDecl*> *params = $4;
+                                          $$ = new FnDecl(id,t,params);
+                                        }
+               |  TypeQualifier Type T_Identifier T_LeftParen VarDeclList T_RightParen {
+                                          Identifier *id = new Identifier(@3,$3);
+                                          Type *t = $2;
+                                          TypeQualifier *tq = $1;
+                                          List<VarDecl*> *params = $5;
+                                          $$ = new FnDecl(id,t,tq,params);
+                                        }
+               ;
+
+VarDeclList :   VarDeclList T_Comma VarDecl     { ($$=$1)->Append($3); }
             |   VarDecl                  { ($$ = new List<VarDecl*>)->Append($1); }
             ;
 
-VarDecl   :    Type T_Identifier T_Semicolon {
+VarDecl   :    Type T_Identifier {
                                      Identifier *id = new Identifier(@2, $2);
                                      Type *t = $1;
                                      $$ = new VarDecl(id, t);
                                  }
-          |    TypeQualifier Type T_Identifier T_Semicolon { 
+          |    TypeQualifier Type T_Identifier { 
                                                     Identifier *id = new Identifier(@3, $3);
                                                     Type *t = $2;
                                                     TypeQualifier *tq = $1;
                                                     $$ = new VarDecl(id,t,tq); 
                                               }
-          |    Type T_Identifier T_Equal Expr T_Semicolon  {
+          |    Type T_Identifier T_Equal Expr {
                                                  Identifier *id = new Identifier(@2,$2);
                                                  Type *t = $1;
                                                  Expr *expr = $4;
                                                  $$ = new VarDecl(id,t,expr);
                                               }
-          |    TypeQualifier Type T_Identifier T_Equal Expr T_Semicolon  {
+          |    TypeQualifier Type T_Identifier T_Equal Expr {
                                                  Identifier *id = new Identifier(@3,$3);
                                                  Type *t = $2;
                                                  TypeQualifier *tq = $1;
                                                  Expr *expr = $5;
                                                  $$ = new VarDecl(id,t,tq,expr);
                                               }
-          |       /*empty *//* { Identifier *id = new Identifier("");
-                           Type *t = new Type("void");
-                           $$ = new VarDecl(id,t);
-                         }*/
+          |   /*empty*/ { }   
           ;
 
 Type      :    T_Int { $$ = new Type("int");}
@@ -219,6 +232,7 @@ Type      :    T_Int { $$ = new Type("int");}
                }
           |    T_Mat2 {$$ = new Type("mat2"); }
           |    T_Mat3 {$$ = new Type("mat3"); }
+          |    T_Vec2 {$$ = new Type("vec2"); }
           ;
 
 TypeQualifier    :    T_In  { $$ = new TypeQualifier("in"); }
@@ -231,15 +245,21 @@ StmtList  :   StmtList Stmt         { ($$=$1)->Append($2); }
           |   Stmt                  { ($$ = new List<Stmt*>)->Append($1); }
           ;
 
-Stmt      :   VarDeclList StmtList  {  List<VarDecl*> *vd = $1;
+Stmt      :   VarDeclList StmtList  {  
+                                       List<VarDecl*> *vd = $1;
                                        List<Stmt*> *s = $2;
                                        $$ = new StmtBlock(vd,s);
                                     }
+          /*|   T_While T_LeftParen Stmt T_RightParen Stmt {
+                                              Expr *expr = $3;
+                                              Stmt *sub = $5;
+                                              $$ = new WhileStmt(expr,sub);
+                                            }*/
           ;
 
-ExprList  :   ExprList Expr         { ($$=$1)->Append($2); }
+/*ExprList  :   ExprList Expr         { ($$=$1)->Append($2); }
           |   Expr                  { ($$ = new List<Expr*>)->Append($1); }
-          ;
+          ;*/
 
 Expr      :  T_LeftParen Expr T_RightParen  { ($$=$2); }
           |  Expr Operator Expr {
@@ -247,6 +267,7 @@ Expr      :  T_LeftParen Expr T_RightParen  { ($$=$2); }
                                   Operator *op = $2;
                                   Expr *right = $3;
                                   $$ = new ArithmeticExpr(left,op,right);
+                                  //Btw we're gonna need to discuss this Operator thing
                                 }
           |  T_IntConstant   { 
                                $$ = new IntConstant(@1,$1);
@@ -313,5 +334,5 @@ Operator  :   T_Plus         {
 void InitParser()
 {
    PrintDebug("parser", "Initializing parser");
-   yydebug = false;
+   yydebug = true;
 }
