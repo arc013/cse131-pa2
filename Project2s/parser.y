@@ -98,11 +98,9 @@ void yyerror(const char *msg); // standard error-handling routine
 %type <declList>  DeclList
 %type <decl>      Decl
 %type <fnDecl>    FunctionPrototype FunctionHeader /*FunctionCall*/
-/*%type <stmtList>  StmtList
-%type <stmt>      Stmt*/
 /* %type <exprList>  ExprList*/
-%type <expr>      Expr
-%type <o>         Operator
+%type <expr>      Expr /*bool-Expr assign-expr */
+%type <o>         ArithOp RelationalOp EqualityOp LogicalOp AssignOp Postfix
 %type <type>      Type
 %type <tq>        TypeQualifier
 %type <d>         VarDeclList
@@ -140,17 +138,9 @@ DeclList  :    DeclList Decl        { ($$=$1)->Append($2); }
 
 Decl      :  FunctionPrototype      { ($$=$1); }
           |  FunctionPrototype T_Semicolon { $$=$1; }
-                                    /*Type T_Identifier T_LeftParen T_RightParen T_LeftBrace Stmt T_RightBrace                            {
-                                          Identifier *id = new Identifier(@2,$2);
-                                          Type *t = $1;
-                                          //Stmt *body = $7;
-                                          //SetFunctionBody(body);
-                                          $$ = new FnDecl(id,t,new List<VarDecl*>);
-                                          $$::SetFunctionBody(
-                                        }*/
-           | VarDecl      { $$=$1; }
-           | VarDecl T_Semicolon { $$=$1; }
-           ;
+          | VarDecl      { $$=$1; }
+          | VarDecl T_Semicolon { $$=$1; }
+          ;
 
 FunctionPrototype : FunctionHeader  { $$=$1; }
                   | FunctionHeader T_LeftBrace T_RightBrace {
@@ -193,7 +183,7 @@ FunctionHeader :  Type T_Identifier T_LeftParen T_RightParen {
                                         }
                ;
 
-VarDeclList :   VarDeclList T_Comma VarDecl     { ($$=$1)->Append($3); }
+VarDeclList :   VarDeclList VarDecl     { ($$=$1)->Append($2); }
             |   VarDecl                  { ($$ = new List<VarDecl*>)->Append($1); }
             ;
 
@@ -227,11 +217,10 @@ VarDecl   :    Type T_Identifier {
 Type      :    T_Int { $$ = new Type("int");}
           |    T_Float { $$ = new Type("float");}
           |    T_Bool  { $$ = new Type("bool");}
-          |    T_Void  { $$ = new Type("void"); 
-               //and many many more
-               }
+          |    T_Void  { $$ = new Type("void"); }
           |    T_Mat2 {$$ = new Type("mat2"); }
           |    T_Mat3 {$$ = new Type("mat3"); }
+          |    T_Mat4 {$$ = new Type("mat4"); }
           |    T_Vec2 {$$ = new Type("vec2"); }
           ;
 
@@ -262,12 +251,40 @@ Stmt      :   VarDeclList StmtList  {
           ;*/
 
 Expr      :  T_LeftParen Expr T_RightParen  { ($$=$2); }
-          |  Expr Operator Expr {
+          |  Expr ArithOp Expr {
                                   Expr *left = $1;
                                   Operator *op = $2;
                                   Expr *right = $3;
                                   $$ = new ArithmeticExpr(left,op,right);
-                                  //Btw we're gonna need to discuss this Operator thing
+                                }
+          |  Expr RelationalOp Expr {
+                                   Expr *left = $1;
+                                   Operator *op = $2;
+                                   Expr *right = $3;
+                                   $$ = new RelationalExpr(left,op,right);
+                                }
+          |  Expr EqualityOp Expr {
+                                   Expr *left = $1;
+                                   Operator *op = $2;
+                                   Expr *right = $3;
+                                   $$ = new EqualityExpr(left,op,right);
+                                }
+          |  Expr LogicalOp Expr {
+                                   Expr *left = $1;
+                                   Operator *op = $2;
+                                   Expr *right = $3;
+                                   $$ = new LogicalExpr(left,op,right);
+                                }
+          |  Expr AssignOp Expr {
+                                   Expr *left = $1;
+                                   Operator *op = $2;
+                                   Expr *right = $3;
+                                   $$ = new AssignExpr(left,op,right);
+                                }
+          |  Expr Postfix      {
+                                   Expr *expr = $1;
+                                   Operator *op = $2;
+                                   $$ = new PostfixExpr(expr,op);
                                 }
           |  T_IntConstant   { 
                                $$ = new IntConstant(@1,$1);
@@ -279,7 +296,8 @@ Expr      :  T_LeftParen Expr T_RightParen  { ($$=$2); }
                                $$ = new BoolConstant(@1, $1);
                              }
           ;
-Operator  :   T_Plus         {  
+
+ArithOp   :   T_Plus         {  
                                $$ = new Operator(@1,"+");
                              }
           |   T_Dash         { 
@@ -291,23 +309,62 @@ Operator  :   T_Plus         {
           |   T_Slash        {
                                 $$ = new Operator(@1,"/");
                              }
+          ;
 
-	  |   T_LessEqual    {
-                                $$ = new Operator(@1,"<=");
-                             }
-	  |   T_GreaterEqual {
-                                $$ = new Operator(@1,">=");
-                             }
+RelationalOp :  T_LeftAngle   {
+                                   $$ = new Operator(@1,"<");
+                                }
+             |   T_RightAngle   {
+                                   $$ = new Operator(@1,">");
+                                }
+             |   T_LessEqual    {
+                                   $$ = new Operator(@1,"<=");
+                                }
+	         |   T_GreaterEqual {
+                                   $$ = new Operator(@1,">=");
+                                }
+             ;
 
-	  |   T_EQ           {
-                                $$ = new Operator(@1,"==");
-                             }
+EqualityOp   :   T_EQ           {
+                                   $$ = new Operator(@1,"==");
+                                }
+	         |   T_NE           {
+                                   $$ = new Operator(@1,"!=");
+                                }
+             ;   
 
-	  |   T_NE           {
-                                $$ = new Operator(@1,"!=");
-                             }
-          ;   
+LogicalOp    :   T_And          {
+                                   $$ = new Operator(@1,"&&");
+                                }
+             |   T_Or           {
+                                   $$ = new Operator(@1,"||");
+                                }
+             ;
 
+AssignOp     :   T_Equal        {
+                                   $$ = new Operator(@1,"=");
+                                }
+             |   T_AddAssign    {
+                                   $$ = new Operator(@1,"+=");
+                                }
+             |   T_SubAssign    {
+                                   $$ = new Operator(@1,"-=");
+                                }
+             |   T_MulAssign    {
+                                   $$ = new Operator(@1,"*=");
+                                }
+             |   T_DivAssign    {
+                                   $$ = new Operator(@1,"/=");
+                                }
+             ;
+
+Postfix      :   T_Inc          {
+                                  $$ = new Operator(@1,"++");
+                                }
+             |   T_Dec          {
+                                  $$ = new Operator(@1,"--");
+                                }
+             ;
 
 
 %%
