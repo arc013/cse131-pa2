@@ -52,6 +52,8 @@ void yyerror(const char *msg); // standard error-handling routine
     Operator *o;
     List<VarDecl*> *d;
     VarDecl *var;
+    Stmt *b;
+    List<Stmt*> *s;
 }
 
 
@@ -103,6 +105,8 @@ void yyerror(const char *msg); // standard error-handling routine
 %type <tq>        TypeQualifier
 %type <d>         VarDeclList
 %type <var>       VarDecl
+%type <s>         StmtList
+%type <b>         Stmt
 
 
 
@@ -157,12 +161,19 @@ DeclList  :    DeclList Decl        { ($$=$1)->Append($2); }
           |    Decl                 { ($$ = new List<Decl*>)->Append($1); }
           ;
 
-Decl      :    Type T_Identifier T_LeftParen  VarDeclList T_RightParen T_LeftBrace T_RightBrace                                                
+Decl      :    T_Void T_Identifier T_LeftParen VarDeclList T_RightParen T_LeftBrace Stmt T_RightBrace                                                
                                               {
                                                 Identifier *id = new Identifier(@2,$2);
-                                                Type *t = $1;
-                                                $$ = new FnDecl(id,t, NULL);
+                                                Type *t = new Type("void");
+                                                List<VarDecl*> *vd = $4;
+                                                $$ = new FnDecl(id,t,vd);
                                               }
+          |    Type T_Identifier T_LeftParen VarDeclList T_RightParen T_LeftBrace Stmt T_RightBrace                            {
+                                          Identifier *id = new Identifier(@2,$2);
+                                          Type *t = $1;
+                                          List<VarDecl*> *vd = $4;
+                                          $$ = new FnDecl(id,t,vd);
+                                        }
           |    VarDecl                  { ($$=$1); }
           ;
 
@@ -170,12 +181,10 @@ VarDeclList :   VarDeclList VarDecl     { ($$=$1)->Append($2); }
             |   VarDecl                  { ($$ = new List<VarDecl*>)->Append($1); }
             ;
 
-VarDecl   :    Type T_Identifier {
+VarDecl   :    Type T_Identifier T_Semicolon {
                                      Identifier *id = new Identifier(@2, $2);
                                      Type *t = $1;
                                      $$ = new VarDecl(id, t);
-                                     //great now I get to just move all the types returning
-                                     //vardecl from decl to here
                                  }
           |    TypeQualifier Type T_Identifier T_Semicolon { 
                                                     Identifier *id = new Identifier(@3, $3);
@@ -196,7 +205,10 @@ VarDecl   :    Type T_Identifier {
                                                  Expr *expr = $5;
                                                  $$ = new VarDecl(id,t,tq,expr);
                                               }
-
+          |       /*empty *//* { Identifier *id = new Identifier("");
+                           Type *t = new Type("void");
+                           $$ = new VarDecl(id,t);
+                         }*/
           ;
 
 Type      :    T_Int { $$ = new Type("int");}
@@ -205,18 +217,38 @@ Type      :    T_Int { $$ = new Type("int");}
           |    T_Void  { $$ = new Type("void"); 
                //and many many more
                }
+          |    T_Mat2 {$$ = new Type("mat2"); }
+          |    T_Mat3 {$$ = new Type("mat3"); }
           ;
+
 TypeQualifier    :    T_In  { $$ = new TypeQualifier("in"); }
                  |    T_Out { $$ = new TypeQualifier("out");}
                  |    T_Const { $$ = new TypeQualifier("const");}
                  |    T_Uniform { $$ = new TypeQualifier("uniform");}
                  ;
-         
+
+StmtList  :   StmtList Stmt         { ($$=$1)->Append($2); }
+          |   Stmt                  { ($$ = new List<Stmt*>)->Append($1); }
+          ;
+
+Stmt      :   VarDeclList StmtList  {  List<VarDecl*> *vd = $1;
+                                       List<Stmt*> *s = $2;
+                                       $$ = new StmtBlock(vd,s);
+                                    }
+          ;
+
 ExprList  :   ExprList Expr         { ($$=$1)->Append($2); }
           |   Expr                  { ($$ = new List<Expr*>)->Append($1); }
           ;
 
-Expr      :  T_IntConstant   { 
+Expr      :  T_LeftParen Expr T_RightParen  { ($$=$2); }
+          |  Expr Operator Expr {
+                                  Expr *left = $1;
+                                  Operator *op = $2;
+                                  Expr *right = $3;
+                                  $$ = new ArithmeticExpr(left,op,right);
+                                }
+          |  T_IntConstant   { 
                                $$ = new IntConstant(@1,$1);
                              }
           |  T_FloatConstant { 
@@ -254,7 +286,6 @@ Operator  :   T_Plus         {
                                 $$ = new Operator(@1,"!=");
                              }
           ;   
-
 
 
 
