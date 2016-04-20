@@ -101,7 +101,7 @@ void yyerror(const char *msg); // standard error-handling routine
 /* %type <exprList>  ExprList*/
 %type <expr>      Expr BoolExpr AssignExpr 
 %type <o>         ArithOp RelationalOp EqualityOp LogicalOp AssignOp Postfix
-%type <type>      Fully_Spec_Type Type
+%type <type>      Type
 %type <tq>        TypeQualifier
 %type <d>         VarDeclList ParamList
 %type <var>       VarDecl Param
@@ -142,14 +142,15 @@ Decl      :  FunctionPrototype      { ($$=$1); }
           ;
 
 FunctionPrototype : FunctionHeader  { $$=$1; }
-                  | FunctionHeader T_LeftBrace T_RightBrace {
-                                                              $$ = $1;
-                                                              $$->SetFunctionBody(new StmtBlock(new List<VarDecl*>,new List<Stmt*>));
-                                                            }
                   | FunctionHeader T_LeftBrace Stmt T_RightBrace { 
                                                                    $$=$1;
                                                                    $$->SetFunctionBody($3);
                                                                  }
+                  | FunctionHeader T_LeftBrace T_RightBrace {
+                                                              $$ = $1;
+                                                              $$->SetFunctionBody(new StmtBlock(new List<VarDecl*>,new List<Stmt*>));
+                                                            }
+
                   ;
                   
                   
@@ -183,7 +184,7 @@ FunctionHeader :  Type T_Identifier T_LeftParen T_RightParen {
                ;
 
 ParamList   :   ParamList T_Comma Param { ($$=$1)->Append($3); }
-            |   Param  { ($$=$1); }
+            |   Param { ($$ = new List<VarDecl*>)->Append($1); }
             ;
 
 Param  :   VarDecl  { ($$=$1); }
@@ -217,6 +218,7 @@ VarDecl   :    Type T_Identifier {
                                                  Expr *expr = $5;
                                                  $$ = new VarDecl(id,t,tq,expr);
                                               }
+          |   Type T_Identifier 
           |   /*empty*/ { }   
           ;
 
@@ -245,6 +247,7 @@ Stmt      :   VarDeclList StmtList  {
                                        List<Stmt*> *s = $2;
                                        $$ = new StmtBlock(vd,s);
                                     }
+          |   T_Break   { $$ = new BreakStmt(@1); }
           /*|   T_While T_LeftParen Stmt T_RightParen Stmt {
                                               Expr *expr = $3;
                                               Stmt *sub = $5;
@@ -301,7 +304,7 @@ BoolExpr  : Expr RelationalOp Expr {
                                 }
            ;
 
-AssignExpr : Expr   { ($$=$1): }
+AssignExpr : Expr   { ($$=$1); }
            | Expr AssignOp Expr {
                                    Expr *left = $1;
                                    Operator *op = $2;
@@ -405,4 +408,5 @@ void InitParser()
 {
    PrintDebug("parser", "Initializing parser");
    yydebug = true;
+   ;
 }
