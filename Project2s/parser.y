@@ -99,12 +99,12 @@ void yyerror(const char *msg); // standard error-handling routine
 %type <decl>      Decl
 %type <fnDecl>    FunctionPrototype FunctionHeader /*FunctionCall*/
 /* %type <exprList>  ExprList*/
-%type <expr>      Expr /*bool-Expr assign-expr */
+%type <expr>      Expr BoolExpr AssignExpr 
 %type <o>         ArithOp RelationalOp EqualityOp LogicalOp AssignOp Postfix
-%type <type>      Type
+%type <type>      Fully_Spec_Type Type
 %type <tq>        TypeQualifier
-%type <d>         VarDeclList
-%type <var>       VarDecl
+%type <d>         VarDeclList ParamList
+%type <var>       VarDecl Param
 %type <s>         StmtList
 %type <b>         Stmt
 
@@ -138,8 +138,7 @@ DeclList  :    DeclList Decl        { ($$=$1)->Append($2); }
 
 Decl      :  FunctionPrototype      { ($$=$1); }
           |  FunctionPrototype T_Semicolon { $$=$1; }
-          | VarDecl      { $$=$1; }
-          | VarDecl T_Semicolon { $$=$1; }
+          |  VarDecl T_Semicolon { $$=$1; }
           ;
 
 FunctionPrototype : FunctionHeader  { $$=$1; }
@@ -168,13 +167,13 @@ FunctionHeader :  Type T_Identifier T_LeftParen T_RightParen {
                                           $$ = new FnDecl(id,t,tq,new List<VarDecl*>);
                                         }
 
-               |  Type T_Identifier T_LeftParen VarDeclList T_RightParen {
+               |  Type T_Identifier T_LeftParen ParamList T_RightParen {
                                           Identifier *id = new Identifier(@2,$2);
                                           Type *t = $1;
                                           List<VarDecl*> *params = $4;
                                           $$ = new FnDecl(id,t,params);
                                         }
-               |  TypeQualifier Type T_Identifier T_LeftParen VarDeclList T_RightParen {
+               |  TypeQualifier Type T_Identifier T_LeftParen ParamList T_RightParen {
                                           Identifier *id = new Identifier(@3,$3);
                                           Type *t = $2;
                                           TypeQualifier *tq = $1;
@@ -182,6 +181,13 @@ FunctionHeader :  Type T_Identifier T_LeftParen T_RightParen {
                                           $$ = new FnDecl(id,t,tq,params);
                                         }
                ;
+
+ParamList   :   ParamList T_Comma Param { ($$=$1)->Append($3); }
+            |   Param  { ($$=$1); }
+            ;
+
+Param  :   VarDecl  { ($$=$1); }
+       ;
 
 VarDeclList :   VarDeclList VarDecl     { ($$=$1)->Append($2); }
             |   VarDecl                  { ($$ = new List<VarDecl*>)->Append($1); }
@@ -198,13 +204,13 @@ VarDecl   :    Type T_Identifier {
                                                     TypeQualifier *tq = $1;
                                                     $$ = new VarDecl(id,t,tq); 
                                               }
-          |    Type T_Identifier T_Equal Expr {
+          |    Type T_Identifier T_Equal AssignExpr {
                                                  Identifier *id = new Identifier(@2,$2);
                                                  Type *t = $1;
                                                  Expr *expr = $4;
                                                  $$ = new VarDecl(id,t,expr);
                                               }
-          |    TypeQualifier Type T_Identifier T_Equal Expr {
+          |    TypeQualifier Type T_Identifier T_Equal AssignExpr {
                                                  Identifier *id = new Identifier(@3,$3);
                                                  Type *t = $2;
                                                  TypeQualifier *tq = $1;
@@ -251,35 +257,13 @@ Stmt      :   VarDeclList StmtList  {
           ;*/
 
 Expr      :  T_LeftParen Expr T_RightParen  { ($$=$2); }
+          |  BoolExpr { ($$=$1); }
+          |  AssignExpr { ($$=$1); }
           |  Expr ArithOp Expr {
                                   Expr *left = $1;
                                   Operator *op = $2;
                                   Expr *right = $3;
                                   $$ = new ArithmeticExpr(left,op,right);
-                                }
-          |  Expr RelationalOp Expr {
-                                   Expr *left = $1;
-                                   Operator *op = $2;
-                                   Expr *right = $3;
-                                   $$ = new RelationalExpr(left,op,right);
-                                }
-          |  Expr EqualityOp Expr {
-                                   Expr *left = $1;
-                                   Operator *op = $2;
-                                   Expr *right = $3;
-                                   $$ = new EqualityExpr(left,op,right);
-                                }
-          |  Expr LogicalOp Expr {
-                                   Expr *left = $1;
-                                   Operator *op = $2;
-                                   Expr *right = $3;
-                                   $$ = new LogicalExpr(left,op,right);
-                                }
-          |  Expr AssignOp Expr {
-                                   Expr *left = $1;
-                                   Operator *op = $2;
-                                   Expr *right = $3;
-                                   $$ = new AssignExpr(left,op,right);
                                 }
           |  Expr Postfix      {
                                    Expr *expr = $1;
@@ -297,6 +281,35 @@ Expr      :  T_LeftParen Expr T_RightParen  { ($$=$2); }
                              }
           ;
 
+BoolExpr  : Expr RelationalOp Expr {
+                                   Expr *left = $1;
+                                   Operator *op = $2;
+                                   Expr *right = $3;
+                                   $$ = new RelationalExpr(left,op,right);
+                                }
+          |  Expr EqualityOp Expr {
+                                   Expr *left = $1;
+                                   Operator *op = $2;
+                                   Expr *right = $3;
+                                   $$ = new EqualityExpr(left,op,right);
+                                }
+          |  Expr LogicalOp Expr {
+                                   Expr *left = $1;
+                                   Operator *op = $2;
+                                   Expr *right = $3;
+                                   $$ = new LogicalExpr(left,op,right);
+                                }
+           ;
+
+AssignExpr : Expr   { ($$=$1): }
+           | Expr AssignOp Expr {
+                                   Expr *left = $1;
+                                   Operator *op = $2;
+                                   Expr *right = $3;
+                                   $$ = new AssignExpr(left,op,right);
+                                }
+           ;
+          
 ArithOp   :   T_Plus         {  
                                $$ = new Operator(@1,"+");
                              }
