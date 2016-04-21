@@ -107,6 +107,7 @@ void yyerror(const char *msg); // standard error-handling routine
 %type <var>       VarDecl Param
 %type <s>         StmtList
 %type <b>         Stmt CompoundStmt SimpleStmt ConditionalStmt Condition IfStmt
+%type <b>         LoopStmt
 
 
 
@@ -248,6 +249,8 @@ Stmt      :   CompoundStmt  { ($$=$1); }
           |   SimpleStmt    { ($$=$1); }
           ;
 
+
+
 CompoundStmt  :  T_LeftBrace T_RightBrace { $$ = new StmtBlock(new List<VarDecl*>,new List<Stmt*>); }
               |  T_LeftBrace VarDeclList StmtList T_RightBrace  {  
                                                                     List<VarDecl*> *vd = $2;
@@ -258,8 +261,9 @@ CompoundStmt  :  T_LeftBrace T_RightBrace { $$ = new StmtBlock(new List<VarDecl*
 
 SimpleStmt   :  Decl { ($$=$1); }
              |  ConditionalStmt { ($$=$1); }
-             
-          |   T_Break   { $$ = new BreakStmt(@1); }
+             |  T_Break   { $$ = new BreakStmt(@1); }
+	     |  T_Return Expr {ReturnStmt($2);}
+	     |  Expr {$$=$1;}
           /*|   T_While T_LeftParen Stmt T_RightParen Stmt {
                                               Expr *expr = $3;
                                               Stmt *sub = $5;
@@ -269,7 +273,17 @@ SimpleStmt   :  Decl { ($$=$1); }
 
 ConditionalStmt :  Condition  { ($$=$1); }
                 |  Condition T_Semicolon { ($$=$1); }
+		|  T_Return  {}
+		|  LoopStmt {}
                 ;
+
+LoopStmt        : T_While BoolExpr Stmt {$$=new WhileStmt($2, $3);}
+                | T_Do Stmt T_While BoolExpr {$$=new DoWhile($3, $2);}
+		| T_For T_LeftParen ForInitStmt T_Semicolon BoolExpr T_Semicolon
+		Expr T_RightParen Stmt {$$=new ForStmt($3, $5, $7, $9) }
+
+
+ForInitStmn     :
 
 Condition  :  T_If T_LeftParen boolExpr T_RightParen Stmt {
                                                              Expr *expr = $3;
