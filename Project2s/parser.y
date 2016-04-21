@@ -55,7 +55,8 @@ void yyerror(const char *msg); // standard error-handling routine
     VarDecl *var;
     Stmt *b;
     List<Stmt*> *s;
-    Array *arr;
+
+    //Array *arr;
 }
 
 
@@ -100,15 +101,15 @@ void yyerror(const char *msg); // standard error-handling routine
 %type <decl>      Decl
 %type <fnDecl>    FunctionPrototype FunctionHeader /*FunctionCall*/
 /* %type <exprList>  ExprList*/
-%type <expr>      Expr BoolExpr AssignExpr 
+%type <expr>      Expr BoolExpr AssignExpr ForInit 
 %type <o>         ArithOp RelationalOp EqualityOp LogicalOp AssignOp Postfix
 %type <type>      Type
 %type <tq>        TypeQualifier
 %type <d>         VarDeclList ParamList
 %type <var>       VarDecl Param
 %type <s>         StmtList
-%type <b>         Stmt CompoundStmt SimpleStmt ConditionalStmt Condition IfStmt LoopStmt
-%type <arr>       Array
+%type <b>         Stmt CompoundStmt SimpleStmt ConditionalStmt Condition LoopStmt
+/*%type <arr>       Array*/
 
 
 
@@ -220,7 +221,7 @@ VarDecl   :    Type T_Identifier {
                                                  Expr *expr = $5;
                                                  $$ = new VarDecl(id,t,tq,expr);
                                               }
-          |   Type T_Identifier Array         {
+         /* |   Type T_Identifier Array         {
                                                  Identifier *id = new Identifier(@2,$3);
                                                  Type *et = $1;
                                                  Type *t = new ArrayType(@3,
@@ -228,7 +229,7 @@ VarDecl   :    Type T_Identifier {
 
                                               }
           |   TypeQualifier Type T_Identifier Array {
-                                                    }
+                                                    }*/
           |   /*empty*/ { }   
           ;
 
@@ -258,6 +259,8 @@ Stmt      :   CompoundStmt  { ($$=$1); }
           |   SimpleStmt    { ($$=$1); }
           ;
 
+
+
 CompoundStmt  :  T_LeftBrace T_RightBrace { $$ = new StmtBlock(new List<VarDecl*>,new List<Stmt*>); }
               |  T_LeftBrace VarDeclList StmtList T_RightBrace  {  
                                                                     List<VarDecl*> *vd = $2;
@@ -266,10 +269,10 @@ CompoundStmt  :  T_LeftBrace T_RightBrace { $$ = new StmtBlock(new List<VarDecl*
                                                                 }
               ;
 
-SimpleStmt   :  Decl { ($$=$1); }
-             |  ConditionalStmt { ($$=$1); }
-             
-          |   T_Break   { $$ = new BreakStmt(@1); }
+SimpleStmt   :  ConditionalStmt { ($$=$1); }
+             |  T_Break   { $$ = new BreakStmt(@1); }
+	     |  T_Return Expr {ReturnStmt(@2,$2);}
+	     |  Expr {$$=$1;}
           /*|   T_While T_LeftParen Stmt T_RightParen Stmt {
                                               Expr *expr = $3;
                                               Stmt *sub = $5;
@@ -279,12 +282,26 @@ SimpleStmt   :  Decl { ($$=$1); }
 
 ConditionalStmt :  Condition  { ($$=$1); }
                 |  Condition T_Semicolon { ($$=$1); }
+		        |  T_Return  {}
+		        |  LoopStmt {}
                 ;
 
-Condition  :  T_If T_LeftParen boolExpr T_RightParen Stmt {
+LoopStmt        : T_While T_LeftParen BoolExpr T_RightParen Stmt {
+                                                                  $$=new WhileStmt($3, $5);
+                                                                 }
+                | T_Do Stmt T_While BoolExpr {$$=new DoWhileStmt($2, $4);}
+		| T_For T_LeftParen ForInit T_Semicolon BoolExpr T_Semicolon
+		Expr T_RightParen Stmt {$$=new ForStmt($3, $5, $7, $9); }
+        ;
+
+
+ForInit     :  {}
+            ;
+
+Condition  :  T_If T_LeftParen BoolExpr T_RightParen Stmt {
                                                              Expr *expr = $3;
                                                              Stmt *ifbody = $5;
-                                                             $$ = new IfStmt(expr,ifbody);
+                                                             $$ = new IfStmt(expr,ifbody, NULL);
                                                           }
            ;
                      
