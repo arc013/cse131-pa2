@@ -55,6 +55,7 @@ void yyerror(const char *msg); // standard error-handling routine
     VarDecl *var;
     Stmt *b;
     List<Stmt*> *s;
+    Array *arr;
 }
 
 
@@ -106,7 +107,8 @@ void yyerror(const char *msg); // standard error-handling routine
 %type <d>         VarDeclList ParamList
 %type <var>       VarDecl Param
 %type <s>         StmtList
-%type <b>         Stmt CompoundStmt SimpleStmt ConditionalStmt Condition IfStmt
+%type <b>         Stmt CompoundStmt SimpleStmt ConditionalStmt Condition IfStmt LoopStmt
+%type <arr>       Array
 
 
 
@@ -218,11 +220,19 @@ VarDecl   :    Type T_Identifier {
                                                  Expr *expr = $5;
                                                  $$ = new VarDecl(id,t,tq,expr);
                                               }
-          |   Type T_Identifier Array_Spec    {
+          |   Type T_Identifier Array         {
+                                                 Identifier *id = new Identifier(@2,$3);
+                                                 Type *et = $1;
+                                                 Type *t = new ArrayType(@3,
+                                                 $$ 
+
                                               }
-          |   TypeQualifier Type T_Identifier Array_Spec
+          |   TypeQualifier Type T_Identifier Array {
+                                                    }
           |   /*empty*/ { }   
           ;
+
+Array     :    
 
 Type      :    T_Int { $$ = new Type("int");}
           |    T_Float { $$ = new Type("float");}
