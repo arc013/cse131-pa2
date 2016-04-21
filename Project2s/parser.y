@@ -106,7 +106,7 @@ void yyerror(const char *msg); // standard error-handling routine
 %type <d>         VarDeclList ParamList
 %type <var>       VarDecl Param
 %type <s>         StmtList
-%type <b>         Stmt
+%type <b>         Stmt CompoundStmt SimpleStmt ConditionalStmt Condition IfStmt
 
 
 
@@ -218,7 +218,9 @@ VarDecl   :    Type T_Identifier {
                                                  Expr *expr = $5;
                                                  $$ = new VarDecl(id,t,tq,expr);
                                               }
-          |   Type T_Identifier 
+          |   Type T_Identifier Array_Spec    {
+                                              }
+          |   TypeQualifier Type T_Identifier Array_Spec
           |   /*empty*/ { }   
           ;
 
@@ -242,11 +244,21 @@ StmtList  :   StmtList Stmt         { ($$=$1)->Append($2); }
           |   Stmt                  { ($$ = new List<Stmt*>)->Append($1); }
           ;
 
-Stmt      :   VarDeclList StmtList  {  
-                                       List<VarDecl*> *vd = $1;
-                                       List<Stmt*> *s = $2;
-                                       $$ = new StmtBlock(vd,s);
-                                    }
+Stmt      :   CompoundStmt  { ($$=$1); }
+          |   SimpleStmt    { ($$=$1); }
+          ;
+
+CompoundStmt  :  T_LeftBrace T_RightBrace { $$ = new StmtBlock(new List<VarDecl*>,new List<Stmt*>); }
+              |  T_LeftBrace VarDeclList StmtList T_RightBrace  {  
+                                                                    List<VarDecl*> *vd = $2;
+                                                                    List<Stmt*> *s = $3;
+                                                                    $$ = new StmtBlock(vd,s);
+                                                                }
+              ;
+
+SimpleStmt   :  Decl { ($$=$1); }
+             |  ConditionalStmt { ($$=$1); }
+             
           |   T_Break   { $$ = new BreakStmt(@1); }
           /*|   T_While T_LeftParen Stmt T_RightParen Stmt {
                                               Expr *expr = $3;
@@ -254,6 +266,18 @@ Stmt      :   VarDeclList StmtList  {
                                               $$ = new WhileStmt(expr,sub);
                                             }*/
           ;
+
+ConditionalStmt :  Condition  { ($$=$1); }
+                |  Condition T_Semicolon { ($$=$1); }
+                ;
+
+Condition  :  T_If T_LeftParen boolExpr T_RightParen Stmt {
+                                                             Expr *expr = $3;
+                                                             Stmt *ifbody = $5;
+                                                             $$ = new IfStmt(expr,ifbody);
+                                                          }
+           ;
+                     
 
 /*ExprList  :   ExprList Expr         { ($$=$1)->Append($2); }
           |   Expr                  { ($$ = new List<Expr*>)->Append($1); }
@@ -279,9 +303,6 @@ Expr      :  T_LeftParen Expr T_RightParen  { ($$=$2); }
           |  T_FloatConstant { 
                                $$ = new FloatConstant(@1,$1);
                              }
-          |  T_BoolConstant  { 
-                               $$ = new BoolConstant(@1, $1);
-                             }
           ;
 
 BoolExpr  : Expr RelationalOp Expr {
@@ -302,9 +323,13 @@ BoolExpr  : Expr RelationalOp Expr {
                                    Expr *right = $3;
                                    $$ = new LogicalExpr(left,op,right);
                                 }
+          |  T_BoolConstant     { 
+                                   $$ = new BoolConstant(@1, $1);
+                                }
+
            ;
 
-AssignExpr : Expr   { ($$=$1); }
+AssignExpr : /*primary*/ Expr   { ($$=$1); }
            | Expr AssignOp Expr {
                                    Expr *left = $1;
                                    Operator *op = $2;
@@ -327,7 +352,7 @@ ArithOp   :   T_Plus         {
                              }
           ;
 
-RelationalOp :  T_LeftAngle   {
+RelationalOp :  T_LeftAngle     {
                                    $$ = new Operator(@1,"<");
                                 }
              |   T_RightAngle   {
