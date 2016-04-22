@@ -286,7 +286,8 @@ CompoundStmt  :  T_LeftBrace T_RightBrace { $$ = new StmtBlock(new List<VarDecl*
 
 SimpleStmt   :  ConditionalStmt { ($$=$1); }
              |  T_Break   { $$ = new BreakStmt(@1); }
-	     |  T_Return Expr {ReturnStmt(@2,$2);}
+	     |  T_Return T_Semicolon { $$= new ReturnStmt(@1, NULL); }
+	     |  T_Return Expr T_Semicolon {$$=new ReturnStmt(@1,$2);}
 	     |  Expr {$$=$1;}
           /*|   T_While T_LeftParen Stmt T_RightParen Stmt {
                                               Expr *expr = $3;
