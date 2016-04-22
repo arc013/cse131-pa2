@@ -303,10 +303,13 @@ LoopStmt        : T_While T_LeftParen BoolExpr T_RightParen Stmt {
                 | T_Do Stmt T_While BoolExpr {$$=new DoWhileStmt($2, $4);}
 		        | T_For T_LeftParen ForInit T_Semicolon BoolExpr T_Semicolon
 		Expr T_RightParen Stmt {$$=new ForStmt($3, $5, $7, $9); }
-		| T_For T_LeftParen ForInit T_Semicolon BoolExpr T_Semicolon
-		T_RightParen Stmt {$$=new ForStmt($3, $5, new EmptyExpr(), $8);}
-		| T_For T_LeftParen T_Semicolon BoolExpr T_RightParen Stmt {$$=new
-			ForStmt(new EmptyExpr(), $4, new EmptyExpr(), $6);}
+		       | T_For T_LeftParen ForInit T_Semicolon BoolExpr T_Semicolon
+		T_RightParen Stmt                   {
+                                              $$=new ForStmt($3, $5, new EmptyExpr(), $8);
+                                            }
+		       | T_For T_LeftParen T_Semicolon BoolExpr T_RightParen Stmt {
+                                              $$=new ForStmt(new EmptyExpr(), $4, new EmptyExpr(), $6);
+                                            }
         ;
 
 
@@ -328,6 +331,7 @@ Condition  :  T_If T_LeftParen BoolExpr T_RightParen Stmt {
            ;
 
 SelectionStmt  :  T_If T_LeftParen BoolExpr T_RightParen T_Question Stmt T_Colon Stmt {
+                                                                                        $$ = new IfStmt($3,$6,$8);
                                                                                       }
                ;
                      
