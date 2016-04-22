@@ -100,14 +100,14 @@ void yyerror(const char *msg); // standard error-handling routine
 %type <decl>      Decl
 %type <fnDecl>    FunctionPrototype FunctionHeader /*FunctionCall*/
 /* %type <exprList>  ExprList*/
-%type <expr>      Expr BoolExpr AssignExpr PostfixExpr ForInit 
+%type <expr>      Expr BoolExpr AssignExpr PostfixExpr ForInit VarExpr PrimaryExpr
 %type <o>         ArithOp RelationalOp EqualityOp LogicalOp AssignOp Postfix
 %type <type>      Type
 %type <tq>        TypeQualifier
 %type <d>         VarDeclList ParamList
 %type <var>       VarDecl Param
 %type <s>         StmtList
-%type <b>         Stmt CompoundStmt SimpleStmt ConditionalStmt Condition LoopStmt
+%type <b>         Stmt CompoundStmt SimpleStmt ConditionalStmt Condition LoopStmt SelectionStmt
 %type <arr>       ArrayType
 
 
@@ -122,6 +122,7 @@ void yyerror(const char *msg); // standard error-handling routine
  * %% markers which delimit the Rules section.
 
  */
+/*R1*/
 Program   :    DeclList            {
                                       @1;
                                       /* pp2: The @1 is needed to convince
@@ -134,30 +135,28 @@ Program   :    DeclList            {
                                     }
           ;
 
+/*R2-R3*/
 DeclList  :    DeclList Decl        { ($$=$1)->Append($2); }
           |    Decl                 { ($$ = new List<Decl*>)->Append($1); }
           ;
 
+/*R4-R6*/
 Decl      :  FunctionPrototype      { ($$=$1); }
           |  FunctionPrototype T_Semicolon { $$=$1; }
           |  VarDecl T_Semicolon { $$=$1; }
           ;
 
+/*R7-R8*/
 FunctionPrototype : FunctionHeader  { $$=$1; }
-                  | FunctionHeader T_LeftBrace Stmt T_RightBrace { 
-                                                                   $$=$1;
-                                                                   $$->SetFunctionBody($3);
-                                                                 }
-                  | FunctionHeader T_LeftBrace T_RightBrace {
-                                                              $$ = $1;
-                                                              $$->SetFunctionBody(new StmtBlock(new List<VarDecl*>,new List<Stmt*>));
-                                                            }
-
+                  | FunctionHeader Stmt { 
+                                            $$=$1;
+                                            $$->SetFunctionBody($2);
+                                        }
                   ;
                   
                   
                   
-                  
+/*R9-R12*/                  
 FunctionHeader :  Type T_Identifier T_LeftParen T_RightParen {
                                           Identifier *id = new Identifier(@2,$2);
                                           Type *t = $1;
@@ -185,17 +184,21 @@ FunctionHeader :  Type T_Identifier T_LeftParen T_RightParen {
                                         }
                ;
 
+/*R13-R14*/
 ParamList   :   ParamList T_Comma Param { ($$=$1)->Append($3); }
             |   Param { ($$ = new List<VarDecl*>)->Append($1); }
             ;
 
+/*R15*/
 Param  :   VarDecl  { ($$=$1); }
        ;
 
+/*R16-R17*/
 VarDeclList :   VarDeclList VarDecl     { ($$=$1)->Append($2); }
             |   VarDecl                  { ($$ = new List<VarDecl*>)->Append($1); }
             ;
 
+/*R18-R23*/
 VarDecl   :    Type T_Identifier {
                                      Identifier *id = new Identifier(@2, $2);
                                      Type *t = $1;
@@ -234,6 +237,7 @@ VarDecl   :    Type T_Identifier {
           |   /*empty*/ { }   
           ;
 
+/*R24-R25*/
 ArrayType     :    T_LeftBracket T_RightBracket {}
               |    T_LeftBracket T_IntConstant T_RightBracket {}
               ;
@@ -271,21 +275,24 @@ StmtList  :   StmtList Stmt         { ($$=$1)->Append($2); }
           ;
 
 Stmt      :   CompoundStmt  { ($$=$1); }
+          |   CompoundStmt T_Semicolon  { ($$=$1); }
           |   SimpleStmt    { ($$=$1); }
+          |   SimpleStmt T_Semicolon  { ($$=$1); }
           ;
 
 
 
-CompoundStmt  :  T_LeftBrace T_RightBrace { $$ = new StmtBlock(new List<VarDecl*>,new List<Stmt*>); }
-              |  T_LeftBrace VarDeclList StmtList T_RightBrace  {  
-                                                                    List<VarDecl*> *vd = $2;
-                                                                    List<Stmt*> *s = $3;
-                                                                    $$ = new StmtBlock(vd,s);
-                                                                }
+CompoundStmt  : T_LeftBrace T_RightBrace { $$ = new StmtBlock(new List<VarDecl*>,new List<Stmt*>); }
+              | T_LeftBrace VarDeclList StmtList T_RightBrace {  
+                                            List<VarDecl*> *vd = $2;
+                                            List<Stmt*> *s = $3;
+                                            $$ = new StmtBlock(vd,s);
+                                        }
               ;
 
 SimpleStmt   :  ConditionalStmt { ($$=$1); }
              |  T_Break   { $$ = new BreakStmt(@1); }
+<<<<<<< HEAD
 	     |  T_Return T_Semicolon { $$= new ReturnStmt(@1, NULL); }
 	     |  T_Return Expr T_Semicolon {$$=new ReturnStmt(@1,$2);}
 	     |  Expr {$$=$1;}
@@ -297,21 +304,22 @@ SimpleStmt   :  ConditionalStmt { ($$=$1); }
           ;
 
 ConditionalStmt :  Condition  { ($$=$1); }
-                |  Condition T_Semicolon { ($$=$1); }
-		        |  T_Return  {}
-		        |  LoopStmt {}
+		        |  LoopStmt { ($$=$1); }
                 ;
 
 LoopStmt        : T_While T_LeftParen BoolExpr T_RightParen Stmt {
-                                                                  $$=new WhileStmt($3, $5);
+                                                                   $$=new WhileStmt($3, $5);
                                                                  }
                 | T_Do Stmt T_While BoolExpr {$$=new DoWhileStmt($2, $4);}
-		| T_For T_LeftParen ForInit T_Semicolon BoolExpr T_Semicolon
+		        | T_For T_LeftParen ForInit T_Semicolon BoolExpr T_Semicolon
 		Expr T_RightParen Stmt {$$=new ForStmt($3, $5, $7, $9); }
-		| T_For T_LeftParen ForInit T_Semicolon BoolExpr T_Semicolon
-		T_RightParen Stmt {$$=new ForStmt($3, $5, new EmptyExpr(), $8);}
-		| T_For T_LeftParen T_Semicolon BoolExpr T_RightParen Stmt {$$=new
-			ForStmt(new EmptyExpr(), $4, new EmptyExpr(), $6);}
+		       | T_For T_LeftParen ForInit T_Semicolon BoolExpr T_Semicolon
+		T_RightParen Stmt                   {
+                                              $$=new ForStmt($3, $5, new EmptyExpr(), $8);
+                                            }
+		       | T_For T_LeftParen T_Semicolon BoolExpr T_RightParen Stmt {
+                                              $$=new ForStmt(new EmptyExpr(), $4, new EmptyExpr(), $6);
+                                            }
         ;
 
 
@@ -323,8 +331,19 @@ Condition  :  T_If T_LeftParen BoolExpr T_RightParen Stmt {
                                                              Stmt *ifbody = $5;
                                                              $$ = new IfStmt(expr,ifbody, NULL);
                                                           }
-           | 
+           |  T_If T_LeftParen BoolExpr T_RightParen Stmt T_Else Stmt {
+                                                                         Expr *expr = $3;
+                                                                         Stmt *ifbody = $5;
+                                                                         Stmt *elsebody = $7;
+                                                                         $$ = new IfStmt(expr,ifbody,elsebody);
+                                                                      }
+           | SelectionStmt { ($$=$1); }
            ;
+
+SelectionStmt  :  T_If T_LeftParen BoolExpr T_RightParen T_Question Stmt T_Colon Stmt {
+                                                                                        $$ = new IfStmt($3,$6,$8);
+                                                                                      }
+               ;
                      
 
 /*ExprList  :   ExprList Expr         { ($$=$1)->Append($2); }
@@ -332,6 +351,7 @@ Condition  :  T_If T_LeftParen BoolExpr T_RightParen Stmt {
           ;*/
 
 Expr      :  T_LeftParen Expr T_RightParen  { ($$=$2); }
+          |  VarExpr  { ($$=$1); }
           |  BoolExpr { ($$=$1); }
           |  AssignExpr { ($$=$1); }
           |  PostfixExpr { ($$=$1); }
@@ -341,16 +361,27 @@ Expr      :  T_LeftParen Expr T_RightParen  { ($$=$2); }
                                   Expr *right = $3;
                                   $$ = new ArithmeticExpr(left,op,right);
                                 }
-          |  T_IntConstant   { 
-                               $$ = new IntConstant(@1,$1);
-                             }
-          |  T_FloatConstant { 
-                               $$ = new FloatConstant(@1,$1);
-                             }
+          | PrimaryExpr { ($$=$1); }
           ;
 
-PostfixExpr  :  Expr { ($$=$1); }
-             |  PostfixExpr T_Dot T_Identifier { 
+PrimaryExpr : T_IntConstant   { 
+                               $$ = new IntConstant(@1,$1);
+                             }
+            |  T_FloatConstant { 
+                               $$ = new FloatConstant(@1,$1);
+                              }
+            |  T_BoolConstant {  
+                                $$ = new BoolConstant(@1, $1);
+                              }
+
+            ;
+
+VarExpr  :  T_Identifier { Identifier *id = new Identifier(@1,$1);
+                           $$ = new VarExpr(@1,id);
+                        }
+         ;
+
+PostfixExpr  :  PostfixExpr T_Dot T_Identifier { 
                                                  Identifier *id = new Identifier(@3,$3);
                                                  $$ = new FieldAccess($1,id); }
              |  Expr Postfix    {
@@ -358,7 +389,6 @@ PostfixExpr  :  Expr { ($$=$1); }
                                    Operator *op = $2;
                                    $$ = new PostfixExpr(expr,op);
                                 }
-
              ;
 
 BoolExpr  : Expr RelationalOp Expr {
@@ -385,15 +415,15 @@ BoolExpr  : Expr RelationalOp Expr {
 
            ;
 
-AssignExpr : /*primary*/ Expr   { ($$=$1); }
-           | Expr AssignOp Expr {
+AssignExpr : Expr AssignOp Expr {
                                    Expr *left = $1;
                                    Operator *op = $2;
                                    Expr *right = $3;
                                    $$ = new AssignExpr(left,op,right);
                                 }
+           |  PrimaryExpr { ($$=$1); }
            ;
-          
+
 ArithOp   :   T_Plus         {  
                                $$ = new Operator(@1,"+");
                              }
