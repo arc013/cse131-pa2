@@ -55,8 +55,7 @@ void yyerror(const char *msg); // standard error-handling routine
     VarDecl *var;
     Stmt *b;
     List<Stmt*> *s;
-
-    //Array *arr;
+    ArrayType *arr;
 }
 
 
@@ -101,7 +100,7 @@ void yyerror(const char *msg); // standard error-handling routine
 %type <decl>      Decl
 %type <fnDecl>    FunctionPrototype FunctionHeader /*FunctionCall*/
 /* %type <exprList>  ExprList*/
-%type <expr>      Expr BoolExpr AssignExpr ForInit 
+%type <expr>      Expr BoolExpr AssignExpr PostfixExpr ForInit 
 %type <o>         ArithOp RelationalOp EqualityOp LogicalOp AssignOp Postfix
 %type <type>      Type
 %type <tq>        TypeQualifier
@@ -109,7 +108,7 @@ void yyerror(const char *msg); // standard error-handling routine
 %type <var>       VarDecl Param
 %type <s>         StmtList
 %type <b>         Stmt CompoundStmt SimpleStmt ConditionalStmt Condition LoopStmt
-/*%type <arr>       Array*/
+%type <arr>       ArrayType
 
 
 
@@ -221,19 +220,23 @@ VarDecl   :    Type T_Identifier {
                                                  Expr *expr = $5;
                                                  $$ = new VarDecl(id,t,tq,expr);
                                               }
-         /* |   Type T_Identifier Array         {
-                                                 Identifier *id = new Identifier(@2,$3);
-                                                 Type *et = $1;
-                                                 Type *t = new ArrayType(@3,
-                                                 $$ 
-
+          |   Type T_Identifier ArrayType     {
+                                                 Identifier *id = new Identifier(@2,$2);
+                                                 Type *t = new ArrayType(@3,$1);
+                                                 $$ = new VarDecl(id,t);
                                               }
-          |   TypeQualifier Type T_Identifier Array {
-                                                    }*/
+          |   TypeQualifier Type T_Identifier ArrayType {
+                                                       Identifier *id = new Identifier(@3,$3);
+                                                       Type *t = new ArrayType(@3,$2);
+                                                       TypeQualifier *tq = $1;
+                                                       $$ = new VarDecl(id,t);
+                                                    }
           |   /*empty*/ { }   
           ;
 
-Array     :    
+ArrayType     :    T_LeftBracket T_RightBracket {}
+              |    T_LeftBracket T_IntConstant T_RightBracket {}
+              ;
 
 Type      :    T_Int { $$ = new Type("int");}
           |    T_Float { $$ = new Type("float");}
@@ -243,6 +246,18 @@ Type      :    T_Int { $$ = new Type("int");}
           |    T_Mat3 {$$ = new Type("mat3"); }
           |    T_Mat4 {$$ = new Type("mat4"); }
           |    T_Vec2 {$$ = new Type("vec2"); }
+          |    T_Vec3 {$$ = new Type("vec3"); }
+          |    T_Vec4 {$$ = new Type("vec4"); }
+          |    T_Ivec2 {$$ = new Type("ivec2"); }
+          |    T_Ivec3 {$$ = new Type("ivec3"); }
+          |    T_Ivec4 {$$ = new Type("ivec4"); }
+          |    T_Bvec2 {$$ = new Type("bvec2"); }
+          |    T_Bvec3 {$$ = new Type("bvec3"); }
+          |    T_Bvec4 {$$ = new Type("bvec4"); }
+          |    T_Uint  {$$ = new Type("uint"); }
+          |    T_Uvec2 {$$ = new Type("uvec2"); }
+          |    T_Uvec3 {$$ = new Type("uvec3"); }
+          |    T_Uvec4 {$$ = new Type("uvec4"); }
           ;
 
 TypeQualifier    :    T_In  { $$ = new TypeQualifier("in"); }
@@ -295,11 +310,11 @@ LoopStmt        : T_While T_LeftParen BoolExpr T_RightParen Stmt {
 		| T_For T_LeftParen ForInit T_Semicolon BoolExpr T_Semicolon
 		T_RightParen Stmt {$$=new ForStmt($3, $5, new EmptyExpr(), $8);}
 		| T_For T_LeftParen T_Semicolon BoolExpr T_RightParen Stmt {$$=new
-			ForStmt(new EmptyExpr(), $4, new EmptyExpr(), $6)}
+			ForStmt(new EmptyExpr(), $4, new EmptyExpr(), $6);}
         ;
 
 
-ForInit     :
+ForInit     :   
             ;
 
 Condition  :  T_If T_LeftParen BoolExpr T_RightParen Stmt {
@@ -307,6 +322,7 @@ Condition  :  T_If T_LeftParen BoolExpr T_RightParen Stmt {
                                                              Stmt *ifbody = $5;
                                                              $$ = new IfStmt(expr,ifbody, NULL);
                                                           }
+           | 
            ;
                      
 
@@ -317,16 +333,12 @@ Condition  :  T_If T_LeftParen BoolExpr T_RightParen Stmt {
 Expr      :  T_LeftParen Expr T_RightParen  { ($$=$2); }
           |  BoolExpr { ($$=$1); }
           |  AssignExpr { ($$=$1); }
+          |  PostfixExpr { ($$=$1); }
           |  Expr ArithOp Expr {
                                   Expr *left = $1;
                                   Operator *op = $2;
                                   Expr *right = $3;
                                   $$ = new ArithmeticExpr(left,op,right);
-                                }
-          |  Expr Postfix      {
-                                   Expr *expr = $1;
-                                   Operator *op = $2;
-                                   $$ = new PostfixExpr(expr,op);
                                 }
           |  T_IntConstant   { 
                                $$ = new IntConstant(@1,$1);
@@ -335,6 +347,18 @@ Expr      :  T_LeftParen Expr T_RightParen  { ($$=$2); }
                                $$ = new FloatConstant(@1,$1);
                              }
           ;
+
+PostfixExpr  :  Expr { ($$=$1); }
+             |  PostfixExpr T_Dot T_Identifier { 
+                                                 Identifier *id = new Identifier(@3,$3);
+                                                 $$ = new FieldAccess($1,id); }
+             |  Expr Postfix    {
+                                   Expr *expr = $1;
+                                   Operator *op = $2;
+                                   $$ = new PostfixExpr(expr,op);
+                                }
+
+             ;
 
 BoolExpr  : Expr RelationalOp Expr {
                                    Expr *left = $1;
