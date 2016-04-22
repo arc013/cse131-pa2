@@ -100,7 +100,7 @@ void yyerror(const char *msg); // standard error-handling routine
 %type <decl>      Decl
 %type <fnDecl>    FunctionPrototype FunctionHeader /*FunctionCall*/
 /* %type <exprList>  ExprList*/
-%type <expr>      Expr BoolExpr AssignExpr PostfixExpr ForInit VarExpr 
+%type <expr>      Expr BoolExpr AssignExpr PostfixExpr ForInit VarExpr PrimaryExpr
 %type <o>         ArithOp RelationalOp EqualityOp LogicalOp AssignOp Postfix
 %type <type>      Type
 %type <tq>        TypeQualifier
@@ -122,6 +122,7 @@ void yyerror(const char *msg); // standard error-handling routine
  * %% markers which delimit the Rules section.
 
  */
+/*R1*/
 Program   :    DeclList            {
                                       @1;
                                       /* pp2: The @1 is needed to convince
@@ -134,15 +135,18 @@ Program   :    DeclList            {
                                     }
           ;
 
+/*R2-R3*/
 DeclList  :    DeclList Decl        { ($$=$1)->Append($2); }
           |    Decl                 { ($$ = new List<Decl*>)->Append($1); }
           ;
 
+/*R4-R6*/
 Decl      :  FunctionPrototype      { ($$=$1); }
           |  FunctionPrototype T_Semicolon { $$=$1; }
           |  VarDecl T_Semicolon { $$=$1; }
           ;
 
+/*R7-R8*/
 FunctionPrototype : FunctionHeader  { $$=$1; }
                   | FunctionHeader Stmt { 
                                             $$=$1;
@@ -152,7 +156,7 @@ FunctionPrototype : FunctionHeader  { $$=$1; }
                   
                   
                   
-                  
+/*R9-R12*/                  
 FunctionHeader :  Type T_Identifier T_LeftParen T_RightParen {
                                           Identifier *id = new Identifier(@2,$2);
                                           Type *t = $1;
@@ -180,17 +184,21 @@ FunctionHeader :  Type T_Identifier T_LeftParen T_RightParen {
                                         }
                ;
 
+/*R13-R14*/
 ParamList   :   ParamList T_Comma Param { ($$=$1)->Append($3); }
             |   Param { ($$ = new List<VarDecl*>)->Append($1); }
             ;
 
+/*R15*/
 Param  :   VarDecl  { ($$=$1); }
        ;
 
+/*R16-R17*/
 VarDeclList :   VarDeclList VarDecl     { ($$=$1)->Append($2); }
             |   VarDecl                  { ($$ = new List<VarDecl*>)->Append($1); }
             ;
 
+/*R18-R23*/
 VarDecl   :    Type T_Identifier {
                                      Identifier *id = new Identifier(@2, $2);
                                      Type *t = $1;
@@ -229,6 +237,7 @@ VarDecl   :    Type T_Identifier {
           |   /*empty*/ { }   
           ;
 
+/*R24-R25*/
 ArrayType     :    T_LeftBracket T_RightBracket {}
               |    T_LeftBracket T_IntConstant T_RightBracket {}
               ;
@@ -290,8 +299,7 @@ SimpleStmt   :  ConditionalStmt { ($$=$1); }
             ;
 
 ConditionalStmt :  Condition  { ($$=$1); }
-    		    |  T_Return  {}
-		        |  LoopStmt {}
+		        |  LoopStmt { ($$=$1); }
                 ;
 
 LoopStmt        : T_While T_LeftParen BoolExpr T_RightParen Stmt {
@@ -348,22 +356,27 @@ Expr      :  T_LeftParen Expr T_RightParen  { ($$=$2); }
                                   Expr *right = $3;
                                   $$ = new ArithmeticExpr(left,op,right);
                                 }
-          |  T_IntConstant   { 
+          | PrimaryExpr { ($$=$1); }
+          ;
+
+PrimaryExpr : T_IntConstant   { 
                                $$ = new IntConstant(@1,$1);
                              }
-          |  T_FloatConstant { 
+            |  T_FloatConstant { 
                                $$ = new FloatConstant(@1,$1);
-                             }
-         /* | Decl { $$ = $1; }*/
-          ;
+                              }
+            |  T_BoolConstant {  
+                                $$ = new BoolConstant(@1, $1);
+                              }
+
+            ;
 
 VarExpr  :  T_Identifier { Identifier *id = new Identifier(@1,$1);
                            $$ = new VarExpr(@1,id);
                         }
          ;
 
-PostfixExpr  :  Expr { ($$=$1); }
-             |  PostfixExpr T_Dot T_Identifier { 
+PostfixExpr  :  PostfixExpr T_Dot T_Identifier { 
                                                  Identifier *id = new Identifier(@3,$3);
                                                  $$ = new FieldAccess($1,id); }
              |  Expr Postfix    {
@@ -403,6 +416,7 @@ AssignExpr : Expr AssignOp Expr {
                                    Expr *right = $3;
                                    $$ = new AssignExpr(left,op,right);
                                 }
+           |  PrimaryExpr { ($$=$1); }
            ;
 
 ArithOp   :   T_Plus         {  
