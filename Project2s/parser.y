@@ -100,7 +100,7 @@ void yyerror(const char *msg); // standard error-handling routine
 %type <decl>      Decl
 %type <fnDecl>    FunctionPrototype FunctionHeader /*FunctionCall*/
 /* %type <exprList>  ExprList*/
-%type <expr>      Expr BoolExpr AssignExpr PostfixExpr ForInit 
+%type <expr>      Expr BoolExpr AssignExpr PostfixExpr ForInit VarExpr 
 %type <o>         ArithOp RelationalOp EqualityOp LogicalOp AssignOp Postfix
 %type <type>      Type
 %type <tq>        TypeQualifier
@@ -266,7 +266,9 @@ StmtList  :   StmtList Stmt         { ($$=$1)->Append($2); }
           ;
 
 Stmt      :   CompoundStmt  { ($$=$1); }
+          |   CompoundStmt T_Semicolon  { ($$=$1); }
           |   SimpleStmt    { ($$=$1); }
+          |   SimpleStmt T_Semicolon  { ($$=$1); }
           ;
 
 
@@ -283,22 +285,17 @@ SimpleStmt   :  ConditionalStmt { ($$=$1); }
              |  T_Break   { $$ = new BreakStmt(@1); }
 	         |  T_Return Expr { $$ = new ReturnStmt(@2,$2);}
 	         |  Expr {$$=$1;}
+                       /* |  VarDeclList { $$ = new List<VarDecl*>; } */
               /*variable declerations and functions etc*/
-          /*|   T_While T_LeftParen Stmt T_RightParen Stmt {
-                                              Expr *expr = $3;
-                                              Stmt *sub = $5;
-                                              $$ = new WhileStmt(expr,sub);
-                                            }*/
             ;
 
 ConditionalStmt :  Condition  { ($$=$1); }
-                |  Condition T_Semicolon { ($$=$1); }
-		        |  T_Return  {}
+    		    |  T_Return  {}
 		        |  LoopStmt {}
                 ;
 
 LoopStmt        : T_While T_LeftParen BoolExpr T_RightParen Stmt {
-                                                                  $$=new WhileStmt($3, $5);
+                                                                   $$=new WhileStmt($3, $5);
                                                                  }
                 | T_Do Stmt T_While BoolExpr {$$=new DoWhileStmt($2, $4);}
 		        | T_For T_LeftParen ForInit T_Semicolon BoolExpr T_Semicolon
@@ -341,6 +338,7 @@ SelectionStmt  :  T_If T_LeftParen BoolExpr T_RightParen T_Question Stmt T_Colon
           ;*/
 
 Expr      :  T_LeftParen Expr T_RightParen  { ($$=$2); }
+          |  VarExpr  { ($$=$1); }
           |  BoolExpr { ($$=$1); }
           |  AssignExpr { ($$=$1); }
           |  PostfixExpr { ($$=$1); }
@@ -358,6 +356,11 @@ Expr      :  T_LeftParen Expr T_RightParen  { ($$=$2); }
                              }
          /* | Decl { $$ = $1; }*/
           ;
+
+VarExpr  :  T_Identifier { Identifier *id = new Identifier(@1,$1);
+                           $$ = new VarExpr(@1,id);
+                        }
+         ;
 
 PostfixExpr  :  Expr { ($$=$1); }
              |  PostfixExpr T_Dot T_Identifier { 
@@ -394,15 +397,14 @@ BoolExpr  : Expr RelationalOp Expr {
 
            ;
 
-AssignExpr : /*primary*/ Expr   { ($$=$1); }
-           | Expr AssignOp Expr {
+AssignExpr : Expr AssignOp Expr {
                                    Expr *left = $1;
                                    Operator *op = $2;
                                    Expr *right = $3;
                                    $$ = new AssignExpr(left,op,right);
                                 }
            ;
-          
+
 ArithOp   :   T_Plus         {  
                                $$ = new Operator(@1,"+");
                              }
