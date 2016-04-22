@@ -107,7 +107,7 @@ void yyerror(const char *msg); // standard error-handling routine
 %type <d>         VarDeclList ParamList
 %type <var>       VarDecl Param
 %type <s>         StmtList
-%type <b>         Stmt CompoundStmt SimpleStmt ConditionalStmt Condition LoopStmt
+%type <b>         Stmt CompoundStmt SimpleStmt ConditionalStmt Condition LoopStmt SelectionStmt
 %type <arr>       ArrayType
 
 
@@ -144,15 +144,10 @@ Decl      :  FunctionPrototype      { ($$=$1); }
           ;
 
 FunctionPrototype : FunctionHeader  { $$=$1; }
-                  | FunctionHeader T_LeftBrace Stmt T_RightBrace { 
-                                                                   $$=$1;
-                                                                   $$->SetFunctionBody($3);
-                                                                 }
-                  | FunctionHeader T_LeftBrace T_RightBrace {
-                                                              $$ = $1;
-                                                              $$->SetFunctionBody(new StmtBlock(new List<VarDecl*>,new List<Stmt*>));
-                                                            }
-
+                  | FunctionHeader Stmt { 
+                                            $$=$1;
+                                            $$->SetFunctionBody($2);
+                                        }
                   ;
                   
                   
@@ -276,24 +271,25 @@ Stmt      :   CompoundStmt  { ($$=$1); }
 
 
 
-CompoundStmt  :  T_LeftBrace T_RightBrace { $$ = new StmtBlock(new List<VarDecl*>,new List<Stmt*>); }
-              |  T_LeftBrace VarDeclList StmtList T_RightBrace  {  
-                                                                    List<VarDecl*> *vd = $2;
-                                                                    List<Stmt*> *s = $3;
-                                                                    $$ = new StmtBlock(vd,s);
-                                                                }
+CompoundStmt  : T_LeftBrace T_RightBrace { $$ = new StmtBlock(new List<VarDecl*>,new List<Stmt*>); }
+              | T_LeftBrace VarDeclList StmtList T_RightBrace {  
+                                            List<VarDecl*> *vd = $2;
+                                            List<Stmt*> *s = $3;
+                                            $$ = new StmtBlock(vd,s);
+                                        }
               ;
 
 SimpleStmt   :  ConditionalStmt { ($$=$1); }
              |  T_Break   { $$ = new BreakStmt(@1); }
-	     |  T_Return Expr {ReturnStmt(@2,$2);}
-	     |  Expr {$$=$1;}
+	         |  T_Return Expr { $$ = new ReturnStmt(@2,$2);}
+	         |  Expr {$$=$1;}
+              /*variable declerations and functions etc*/
           /*|   T_While T_LeftParen Stmt T_RightParen Stmt {
                                               Expr *expr = $3;
                                               Stmt *sub = $5;
                                               $$ = new WhileStmt(expr,sub);
                                             }*/
-          ;
+            ;
 
 ConditionalStmt :  Condition  { ($$=$1); }
                 |  Condition T_Semicolon { ($$=$1); }
@@ -305,7 +301,7 @@ LoopStmt        : T_While T_LeftParen BoolExpr T_RightParen Stmt {
                                                                   $$=new WhileStmt($3, $5);
                                                                  }
                 | T_Do Stmt T_While BoolExpr {$$=new DoWhileStmt($2, $4);}
-		| T_For T_LeftParen ForInit T_Semicolon BoolExpr T_Semicolon
+		        | T_For T_LeftParen ForInit T_Semicolon BoolExpr T_Semicolon
 		Expr T_RightParen Stmt {$$=new ForStmt($3, $5, $7, $9); }
         ;
 
@@ -318,8 +314,18 @@ Condition  :  T_If T_LeftParen BoolExpr T_RightParen Stmt {
                                                              Stmt *ifbody = $5;
                                                              $$ = new IfStmt(expr,ifbody, NULL);
                                                           }
-           | 
+           |  T_If T_LeftParen BoolExpr T_RightParen Stmt T_Else Stmt {
+                                                                         Expr *expr = $3;
+                                                                         Stmt *ifbody = $5;
+                                                                         Stmt *elsebody = $7;
+                                                                         $$ = new IfStmt(expr,ifbody,elsebody);
+                                                                      }
+           | SelectionStmt { ($$=$1); }
            ;
+
+SelectionStmt  :  T_If T_LeftParen BoolExpr T_RightParen T_Question Stmt T_Colon Stmt {
+                                                                                      }
+               ;
                      
 
 /*ExprList  :   ExprList Expr         { ($$=$1)->Append($2); }
@@ -342,6 +348,7 @@ Expr      :  T_LeftParen Expr T_RightParen  { ($$=$2); }
           |  T_FloatConstant { 
                                $$ = new FloatConstant(@1,$1);
                              }
+         /* | Decl { $$ = $1; }*/
           ;
 
 PostfixExpr  :  Expr { ($$=$1); }
@@ -353,7 +360,6 @@ PostfixExpr  :  Expr { ($$=$1); }
                                    Operator *op = $2;
                                    $$ = new PostfixExpr(expr,op);
                                 }
-
              ;
 
 BoolExpr  : Expr RelationalOp Expr {
