@@ -143,7 +143,8 @@ DeclList  :    DeclList Decl        { ($$=$1)->Append($2); }
 /*R4-R6*/
 Decl      :  FunctionPrototype      { ($$=$1); }
           |  FunctionPrototype T_Semicolon { $$=$1; }
-          |  VarDecl T_Semicolon { $$=$1; }
+          |  VarDecl {$$ = $1;}
+          |  VarDecl T_Semicolon { $$ = $1; }
           ;
 
 /*R7-R8*/
@@ -196,6 +197,7 @@ Param  :   VarDecl  { ($$=$1); }
 /*R16-R17*/
 VarDeclList :   VarDeclList VarDecl     { ($$=$1)->Append($2); }
             |   VarDecl                  { ($$ = new List<VarDecl*>)->Append($1); }
+            |   VarDecl T_Semicolon       { ($$= new List<VarDecl*>)->Append($1); }
             ;
 
 /*R18-R23*/
@@ -234,7 +236,7 @@ VarDecl   :    Type T_Identifier {
                                                        TypeQualifier *tq = $1;
                                                        $$ = new VarDecl(id,t);
                                                     }
-          |   /*empty*/ { }   
+          /*|   / { } */  
           ;
 
 /*R24-R25*/
@@ -278,6 +280,7 @@ Stmt      :   CompoundStmt  { ($$=$1); }
           |   CompoundStmt T_Semicolon  { ($$=$1); }
           |   SimpleStmt    { ($$=$1); }
           |   SimpleStmt T_Semicolon  { ($$=$1); }
+         /* |   T_LeftBrace Stmt T_RightBrace { ($$=$2); }*/
           ;
 
 
@@ -288,12 +291,23 @@ CompoundStmt  : T_LeftBrace T_RightBrace { $$ = new StmtBlock(new List<VarDecl*>
                                             List<Stmt*> *s = $3;
                                             $$ = new StmtBlock(vd,s);
                                         }
+              | T_LeftBrace StmtList VarDeclList T_RightBrace {
+                                            List<Stmt*> *s = $2;
+                                            List<VarDecl*> *vd = $3;
+                                            $$ = new StmtBlock(vd,s);
+                                        }
+              | T_LeftBrace StmtList T_RightBrace {
+                                        $$ = new StmtBlock(new List<VarDecl*>, $2);
+                                        }
+              | T_LeftBrace  VarDeclList T_RightBrace {
+                                        $$ = new StmtBlock($2, new List<Stmt*>);
+                                        }
               ;
 
 SimpleStmt   :  ConditionalStmt { ($$=$1); }
              |  T_Break   { $$ = new BreakStmt(@1); }
-	         |  T_Return Expr { $$ = new ReturnStmt(@2,$2);}
-	         |  Expr {$$=$1;}
+	     |  T_Return Expr { $$ = new ReturnStmt(@2,$2);}
+             |   Expr {$$=$1;}
                        /* |  VarDeclList { $$ = new List<VarDecl*>; } */
               /*variable declerations and functions etc*/
             ;
@@ -357,6 +371,7 @@ Expr      :  T_LeftParen Expr T_RightParen  { ($$=$2); }
                                   $$ = new ArithmeticExpr(left,op,right);
                                 }
           | PrimaryExpr { ($$=$1); }
+          |  /*empty */ { $$ = new EmptyExpr(); }
           ;
 
 PrimaryExpr : T_IntConstant   { 
