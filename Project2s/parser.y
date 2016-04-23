@@ -47,7 +47,7 @@ void yyerror(const char *msg); // standard error-handling routine
     Decl *decl;
     List<Decl*> *declList;
     Expr *expr;
-    //List<Expr*> *exprList;
+    List<Expr*> *exprList;
     Type *type;
     TypeQualifier *tq;
     Operator *o;
@@ -55,7 +55,12 @@ void yyerror(const char *msg); // standard error-handling routine
     VarDecl *var;
     Stmt *b;
     List<Stmt*> *s;
+    struct {
+       Expr *base;
+       Identifier *field;
+    } FnCalls;
     ArrayType *arr;
+    Identifier *id;
 }
 
 
@@ -99,8 +104,9 @@ void yyerror(const char *msg); // standard error-handling routine
 %type <declList>  DeclList
 %type <decl>      Decl
 %type <fnDecl>    FunctionPrototype FunctionHeader /*FunctionCall*/
-/* %type <exprList>  ExprList*/
-%type <expr>      Expr BoolExpr AssignExpr PostfixExpr ForInit VarExpr PrimaryExpr FunctionCall
+%type <exprList>  Args
+%type <expr>      Expr BoolExpr AssignExpr PostfixExpr ForInit VarExpr PrimaryExpr 
+%type <expr>      FunctionCall Arg
 %type <o>         ArithOp RelationalOp EqualityOp LogicalOp AssignOp Postfix
 %type <type>      Type
 %type <tq>        TypeQualifier
@@ -109,6 +115,8 @@ void yyerror(const char *msg); // standard error-handling routine
 %type <s>         StmtList
 %type <b>         Stmt CompoundStmt SimpleStmt ConditionalStmt Condition LoopStmt SelectionStmt
 %type <arr>       ArrayType
+%type <FnCalls>   FunctionCallHeader 
+%type <id>        FunctionIdentifier 
 
 
 
@@ -236,7 +244,6 @@ VarDecl   :    Type T_Identifier {
                                                        TypeQualifier *tq = $1;
                                                        $$ = new VarDecl(id,t);
                                                     }
-          /*|   / { } */  
           ;
 
 /*R24-R25*/
@@ -280,7 +287,6 @@ Stmt      :   CompoundStmt  { ($$=$1); }
           |   CompoundStmt T_Semicolon  { ($$=$1); }
           |   SimpleStmt    { ($$=$1); }
           |   SimpleStmt T_Semicolon  { ($$=$1); }
-         /* |   T_LeftBrace Stmt T_RightBrace { ($$=$2); }*/
           ;
 
 
@@ -306,11 +312,10 @@ CompoundStmt  : T_LeftBrace T_RightBrace { $$ = new StmtBlock(new List<VarDecl*>
 
 SimpleStmt   :  ConditionalStmt { ($$=$1); }
              |  T_Break   { $$ = new BreakStmt(@1); }
-	     |  T_Return Expr { $$ = new ReturnStmt(@2,$2);}
-             |   Expr {$$=$1;}
-                       /* |  VarDeclList { $$ = new List<VarDecl*>; } */
-              /*variable declerations and functions etc*/
-            ;
+	         |  T_Return T_Semicolon { $$= new ReturnStmt(@1, NULL); }
+	         |  T_Return Expr T_Semicolon {$$=new ReturnStmt(@1,$2);}
+	         |  Expr {$$=$1;}
+             ;
 
 ConditionalStmt :  Condition  { ($$=$1); }
 		        |  LoopStmt { ($$=$1); }
@@ -361,15 +366,14 @@ SelectionStmt  :  T_If T_LeftParen BoolExpr T_RightParen T_Question Stmt T_Colon
 
 Expr      :  T_LeftParen Expr T_RightParen  { ($$=$2); }
           |  BoolExpr { ($$=$1); }
-          |  AssignExpr { ($$=$1); }
-          |  PostfixExpr { ($$=$1); }
+          /*|  AssignExpr { ($$=$1); } */
+          /*|  PostfixExpr { ($$=$1); }*/
           |  Expr ArithOp Expr {
                                   Expr *left = $1;
                                   Operator *op = $2;
                                   Expr *right = $3;
                                   $$ = new ArithmeticExpr(left,op,right);
                                 }
-          | PrimaryExpr { ($$=$1); }
           |  /*empty */ { $$ = new EmptyExpr(); }
           ;
 
@@ -393,7 +397,12 @@ VarExpr  :  T_Identifier { Identifier *id = new Identifier(@1,$1);
 
 PostfixExpr  :  PostfixExpr T_Dot T_Identifier { 
                                                  Identifier *id = new Identifier(@3,$3);
-                                                 $$ = new FieldAccess($1,id); }
+                                                 $$ = new FieldAccess($1,id); 
+                                              }
+             |  PostfixExpr T_LeftBracket T_IntConstant T_RightBracket {
+                                                 Expr *subscript = new IntConstant(@3,$3);
+                                                 $$ = new ArrayAccess(@3,$1,subscript);
+                                             }
              |  PostfixExpr Postfix    {
                                    Expr *expr = $1;
                                    Operator *op = $2;
@@ -402,6 +411,42 @@ PostfixExpr  :  PostfixExpr T_Dot T_Identifier {
              | PrimaryExpr { ($$ = $1); }
              | FunctionCall { ($$=$1); }
              ;
+
+FunctionCall :  FunctionCallHeader T_LeftParen T_RightParen { $$ = new Call(@1, NULL, $1.field , new List<Expr*>); }
+             |  FunctionCallHeader T_LeftParen Args T_RightParen { $$ = new Call(@1, $1.base, $1.field, $3); }
+             ;
+
+FunctionCallHeader :  PostfixExpr T_Dot FunctionIdentifier { 
+                                                              $$.base = $1;
+                                                              $$.field = $3;
+                                                           }
+                   |  FunctionIdentifier { $$.field = $1; }
+                   ;
+
+FunctionIdentifier : T_Mat2  { $$ = new Identifier(@1,"mat2"); }
+                   | T_Mat3  { $$ = new Identifier(@1,"mat3"); }
+                   | T_Mat4  { $$ = new Identifier(@1,"mat4"); }
+                   | T_Vec2  { $$ = new Identifier(@1,"vec2"); }
+                   | T_Vec3  { $$ = new Identifier(@1,"vec3"); }
+                   | T_Vec4  { $$ = new Identifier(@1,"vec4"); }
+                   | T_Ivec2 { $$ = new Identifier(@1,"ivec2"); }
+                   | T_Ivec3 { $$ = new Identifier(@1,"ivec3"); }
+                   | T_Ivec4 { $$ = new Identifier(@1,"ivec4"); }
+                   | T_Bvec2 { $$ = new Identifier(@1,"bvec2"); }
+                   | T_Bvec3 { $$ = new Identifier(@1,"bvec3"); }
+                   | T_Bvec4 { $$ = new Identifier(@1,"bvec4"); }
+                   | T_Uvec2 { $$ = new Identifier(@1,"uvec2"); }
+                   | T_Uvec3 { $$ = new Identifier(@1,"uvec3"); }
+                   | T_Uvec4 { $$ = new Identifier(@1, "uvec4"); }
+                   | T_Identifier { $$ = new Identifier(@1,$1); }
+                   ;
+
+Args : Args T_Comma Arg { ($$=$1)->Append($3); }
+     | Arg { ($$ = new List<Expr*>)->Append($1);}
+     ;
+
+Arg  : Expr { $$ = $1;}
+     ; 
 
 BoolExpr  : Expr RelationalOp Expr {
                                    Expr *left = $1;
@@ -421,9 +466,7 @@ BoolExpr  : Expr RelationalOp Expr {
                                    Expr *right = $3;
                                    $$ = new LogicalExpr(left,op,right);
                                 }
-          |  T_BoolConstant     { 
-                                   $$ = new BoolConstant(@1, $1);
-                                }
+          |  AssignExpr        { $$ = $1; }
 
            ;
 
@@ -433,7 +476,7 @@ AssignExpr : Expr AssignOp Expr {
                                    Expr *right = $3;
                                    $$ = new AssignExpr(left,op,right);
                                 }
-           |  PrimaryExpr { ($$=$1); }
+           | PostfixExpr { ($$=$1); }
            ;
 
 ArithOp   :   T_Plus         {  
@@ -459,7 +502,7 @@ RelationalOp :  T_LeftAngle     {
              |   T_LessEqual    {
                                    $$ = new Operator(@1,"<=");
                                 }
-	         |   T_GreaterEqual {
+	     |   T_GreaterEqual {
                                    $$ = new Operator(@1,">=");
                                 }
              ;
