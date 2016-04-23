@@ -100,7 +100,7 @@ void yyerror(const char *msg); // standard error-handling routine
 %type <decl>      Decl
 %type <fnDecl>    FunctionPrototype FunctionHeader /*FunctionCall*/
 /* %type <exprList>  ExprList*/
-%type <expr>      Expr BoolExpr AssignExpr PostfixExpr ForInit VarExpr PrimaryExpr
+%type <expr>      Expr BoolExpr AssignExpr PostfixExpr ForInit VarExpr PrimaryExpr FunctionCall
 %type <o>         ArithOp RelationalOp EqualityOp LogicalOp AssignOp Postfix
 %type <type>      Type
 %type <tq>        TypeQualifier
@@ -360,7 +360,6 @@ SelectionStmt  :  T_If T_LeftParen BoolExpr T_RightParen T_Question Stmt T_Colon
           ;*/
 
 Expr      :  T_LeftParen Expr T_RightParen  { ($$=$2); }
-          |  VarExpr  { ($$=$1); }
           |  BoolExpr { ($$=$1); }
           |  AssignExpr { ($$=$1); }
           |  PostfixExpr { ($$=$1); }
@@ -383,6 +382,7 @@ PrimaryExpr : T_IntConstant   {
             |  T_BoolConstant {  
                                 $$ = new BoolConstant(@1, $1);
                               }
+            |  VarExpr  { ($$=$1); }
 
             ;
 
@@ -394,11 +394,13 @@ VarExpr  :  T_Identifier { Identifier *id = new Identifier(@1,$1);
 PostfixExpr  :  PostfixExpr T_Dot T_Identifier { 
                                                  Identifier *id = new Identifier(@3,$3);
                                                  $$ = new FieldAccess($1,id); }
-             |  Expr Postfix    {
+             |  PostfixExpr Postfix    {
                                    Expr *expr = $1;
                                    Operator *op = $2;
                                    $$ = new PostfixExpr(expr,op);
                                 }
+             | PrimaryExpr { ($$ = $1); }
+             | FunctionCall { ($$=$1); }
              ;
 
 BoolExpr  : Expr RelationalOp Expr {
